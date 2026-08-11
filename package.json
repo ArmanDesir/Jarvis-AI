@@ -1,0 +1,21 @@
+{
+  "name": "rightjob-ai-os",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @rightjob/web",
+    "build:web": "npm run build --workspace @rightjob/web",
+    "lint:web": "npm run lint --workspace @rightjob/web",
+    "format:web": "npm run format --workspace @rightjob/web",
+    "format:check:web": "npm run format:check --workspace @rightjob/web",
+    "typecheck:web": "npm run typecheck --workspace @rightjob/web",
+    "test:web": "npm run test --workspace @rightjob/web"
+  },
+  "engines": {
+    "node": ">=20.20.2",
+    "npm": ">=10"
+  }
+}

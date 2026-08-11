@@ -1,0 +1,1 @@
+"""Rightjob worker composition root."""

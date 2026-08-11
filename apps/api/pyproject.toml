@@ -1,0 +1,20 @@
+[project]
+name = "rightjob-api"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "rightjob-core",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[tool.uv.sources]
+rightjob-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rightjob_api"]
+

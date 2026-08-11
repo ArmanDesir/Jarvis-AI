@@ -1,0 +1,55 @@
+[project]
+name = "rightjob-ai-os-workspace"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.uv.workspace]
+members = ["packages/core", "apps/api", "services/worker"]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+  "alembic>=1.15,<2",
+  "httpx>=0.28,<1",
+  "mypy>=1.15,<2",
+  "psycopg[binary]>=3.2,<4",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "ruff>=0.11,<1",
+  "sqlalchemy>=2.0,<3",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+pythonpath = [
+  "packages/core/src",
+  "apps/api/src",
+  "services/worker/src",
+]
+markers = [
+  "integration: local integration tests without paid services",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [".tooling", "db/migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = [
+  "packages/core/src",
+  "apps/api/src",
+  "services/worker/src",
+  "scripts",
+]

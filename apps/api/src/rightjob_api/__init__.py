@@ -1,0 +1,1 @@
+"""Rightjob API composition root."""

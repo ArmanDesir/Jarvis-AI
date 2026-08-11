@@ -1,0 +1,22 @@
+name: rightjob-ai-os
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: rightjob
+      POSTGRES_USER: rightjob
+      POSTGRES_PASSWORD: rightjob
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rightjob -d rightjob"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - rightjob_postgres:/var/lib/postgresql/data
+
+volumes:
+  rightjob_postgres:
+
