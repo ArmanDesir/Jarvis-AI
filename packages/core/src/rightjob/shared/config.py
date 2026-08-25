@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from os import environ
 from typing import Mapping
 
@@ -54,6 +54,16 @@ class OptionalAdapterSettings:
 
 
 @dataclass(frozen=True)
+class AISettings:
+    enabled: bool
+    adapter: str
+    model: str | None
+    timeout_seconds: int
+    maximum_output_tokens: int
+    api_key: str | None = field(repr=False)
+
+
+@dataclass(frozen=True)
 class StorageSettings:
     enabled: bool
     endpoint: str | None
@@ -70,7 +80,7 @@ class Settings:
     database: DatabaseSettings
     storage: StorageSettings
     identity: OptionalAdapterSettings
-    ai: OptionalAdapterSettings
+    ai: AISettings
     workflow: OptionalAdapterSettings
 
     @classmethod
@@ -93,6 +103,36 @@ class Settings:
             return OptionalAdapterSettings(enabled, name)
 
         workflow = adapter("WORKFLOW")
+        ai_enabled = _bool(source, "RIGHTJOB_AI_ENABLED")
+        ai_adapter = source.get("RIGHTJOB_AI_ADAPTER", "disabled")
+        ai_model = source.get("RIGHTJOB_AI_MODEL") or None
+        selected_credential = None
+        if ai_enabled and ai_adapter == "disabled":
+            raise ConfigurationError("RIGHTJOB_AI_ADAPTER must be configured when enabled")
+        if ai_enabled and not ai_model:
+            raise ConfigurationError("RIGHTJOB_AI_MODEL is required when AI is enabled")
+        if ai_enabled and ai_adapter not in {"openai", "groq"}:
+            raise ConfigurationError("RIGHTJOB_AI_ADAPTER must be openai or groq when enabled")
+        if ai_enabled and ai_adapter == "groq" and ai_model != "openai/gpt-oss-20b":
+            raise ConfigurationError("the Groq adapter requires openai/gpt-oss-20b")
+        if ai_enabled:
+            credential = {
+                "openai": "RIGHTJOB_OPENAI_API_KEY",
+                "groq": "RIGHTJOB_GROQ_API_KEY",
+            }[ai_adapter]
+            selected_credential = source.get(credential) or None
+            if not selected_credential:
+                raise ConfigurationError(
+                    f"{credential} is required when the {ai_adapter} adapter is enabled"
+                )
+        if len(ai_adapter) > 100 or (ai_model is not None and len(ai_model) > 200):
+            raise ConfigurationError("AI adapter and model identifiers must be bounded")
+        ai_timeout = _int(source, "RIGHTJOB_AI_TIMEOUT_SECONDS", 30)
+        if ai_timeout > 30:
+            raise ConfigurationError("RIGHTJOB_AI_TIMEOUT_SECONDS must be at most 30")
+        ai_output_tokens = _int(source, "RIGHTJOB_AI_MAX_OUTPUT_TOKENS", 2_048)
+        if ai_output_tokens > 8_192:
+            raise ConfigurationError("RIGHTJOB_AI_MAX_OUTPUT_TOKENS must be at most 8192")
         return cls(
             environment=source.get("RIGHTJOB_ENVIRONMENT", "local"),
             log_level=source.get("RIGHTJOB_LOG_LEVEL", "INFO").upper(),
@@ -113,6 +153,13 @@ class Settings:
                 region=source.get("RIGHTJOB_STORAGE_REGION") or None,
             ),
             identity=adapter("IDENTITY"),
-            ai=adapter("AI"),
+            ai=AISettings(
+                ai_enabled,
+                ai_adapter,
+                ai_model,
+                ai_timeout,
+                ai_output_tokens,
+                selected_credential,
+            ),
             workflow=workflow,
         )

@@ -15,7 +15,7 @@ ALLOWED_ROUTES = {
     "/api/v1/workspace",
     "/api/v1/membership",
 }
-PROOF_DEPENDENCIES = {"clerk", "pgvector", "redis", "openai", "anthropic"}
+PROOF_DEPENDENCIES = {"clerk", "pgvector", "redis", "anthropic"}
 
 
 def main() -> int:
@@ -46,6 +46,17 @@ def main() -> int:
             failures.append(
                 f"Proof-gate/external dependency is prohibited in Phase 1: {dependency}"
             )
+
+    openai_manifests = [
+        path.relative_to(ROOT).as_posix()
+        for path in manifests
+        if re.search(r'["\']openai(?:\[|[<>=~"\'])', path.read_text(encoding="utf-8").lower())
+    ]
+    if openai_manifests != ["packages/core/pyproject.toml"]:
+        failures.append(
+            "OpenAI SDK must remain isolated to core provider infrastructure; "
+            f"found {openai_manifests}"
+        )
 
     temporal_manifests = [
         path.relative_to(ROOT).as_posix()

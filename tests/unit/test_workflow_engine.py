@@ -22,9 +22,10 @@ def context(workspace_id: str = "workspace-a") -> WorkflowContext:
     return WorkflowContext(
         workspace_id=workspace_id,
         correlation_id="correlation-1",
+        causation_id=None,
         logical_operation_id="operation-1",
         workflow_type="proof.durable-counter",
-        workflow_version=1,
+        workflow_version="1.0.0",
     )
 
 

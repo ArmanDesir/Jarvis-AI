@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any, Mapping
 
 from rightjob.orchestration import WorkflowContext, WorkflowRef, WorkflowResult, WorkflowStatus
@@ -15,9 +14,7 @@ class WorkflowScopeError(PermissionError):
 
 
 def canonical_workflow_id(context: WorkflowContext) -> str:
-    material = ":".join((context.workspace_id, context.workflow_type, context.logical_operation_id))
-    digest = hashlib.sha256(material.encode()).hexdigest()[:24]
-    return f"rj-{context.workflow_type}-{digest}"
+    return context.canonical_id()
 
 
 _STATUS = {

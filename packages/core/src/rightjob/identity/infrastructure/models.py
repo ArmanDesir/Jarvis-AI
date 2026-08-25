@@ -12,25 +12,14 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    MetaData,
     String,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
-
-class Base(DeclarativeBase):
-    metadata = MetaData(
-        naming_convention={
-            "ix": "ix_%(table_name)s_%(column_0_name)s",
-            "uq": "uq_%(table_name)s_%(column_0_name)s",
-            "ck": "ck_%(table_name)s_%(column_0_name)s",
-            "fk": "fk_%(table_name)s_%(column_0_name)s",
-            "pk": "pk_%(table_name)s",
-        }
-    )
+from rightjob.shared.sqlalchemy import Base as Base
 
 
 class WorkspaceRecord(Base):

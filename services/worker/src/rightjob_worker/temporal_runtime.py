@@ -10,6 +10,8 @@ from typing import Any, Awaitable, Callable, Mapping
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from rightjob_worker.execution_activities import synthetic_step
+from rightjob_worker.execution_workflows import EXECUTION_WORKFLOWS
 from rightjob_worker.proof_activities import (
     FakeExternalEffects,
     retry_activity,
@@ -57,8 +59,8 @@ async def run_temporal_worker(
     worker = Worker(
         client,
         task_queue=settings.task_queue,
-        workflows=PROOF_WORKFLOWS,
-        activities=[retry_activity, timeout_activity, effects.execute],
+        workflows=[*PROOF_WORKFLOWS, *EXECUTION_WORKFLOWS],
+        activities=[retry_activity, timeout_activity, effects.execute, synthetic_step],
     )
     async with worker:
         await wait_for_stop()

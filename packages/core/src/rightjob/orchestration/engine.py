@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Mapping, Protocol
@@ -21,9 +22,15 @@ class WorkflowStatus(StrEnum):
 class WorkflowContext:
     workspace_id: str
     correlation_id: str
+    causation_id: str | None
     logical_operation_id: str
     workflow_type: str
-    workflow_version: int
+    workflow_version: str
+
+    def canonical_id(self) -> str:
+        material = ":".join((self.workspace_id, self.workflow_type, self.logical_operation_id))
+        digest = hashlib.sha256(material.encode()).hexdigest()[:24]
+        return f"rj-{self.workflow_type}-{digest}"
 
 
 @dataclass(frozen=True)

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "packages/core/src/rightjob"
 DEPARTMENTS = ROOT / "departments"
 CORE_MODULES = {
+    "ai_runtime",
     "executive",
     "context",
     "planner",
@@ -34,15 +35,27 @@ ALLOWED_CORE_IMPORTS = {
     "contracts",
 }
 EXCEPTIONS = {
+    "ai_runtime": {"executive", "planner", "provider_adapters"},
     "provider_adapters": {"tool_interfaces"},
 }
 STRICTLY_FORBIDDEN = {
+    "ai_runtime": {
+        "audit",
+        "identity",
+        "orchestration",
+        "policy",
+        "repositories",
+        "tool_interfaces",
+    },
     "executive": {"planner", "orchestration", "provider_adapters", "tool_interfaces"},
     "planner": {"orchestration", "provider_adapters", "tool_interfaces", "repositories"},
     "reviewer": {"orchestration", "policy", "provider_adapters", "tool_interfaces", "repositories"},
     "memory": {"work", "identity"},
     "tool_interfaces": {"provider_adapters"},
 }
+VENDOR_SDK_OWNERS = {"openai": "provider_adapters"}
+FORBIDDEN_EXTERNAL_IMPORTS = {"executive": {"importlib", "sqlalchemy", "subprocess", "temporalio"}}
+FORBIDDEN_AI_CALLS = {"eval", "exec", "compile", "__import__"}
 
 
 def imports(path: Path) -> set[str]:
@@ -67,6 +80,14 @@ def check_core(path: Path) -> list[str]:
         return []
     failures: list[str] = []
     for imported in imports(path):
+        external_root = imported.split(".", 1)[0]
+        if external_root in FORBIDDEN_EXTERNAL_IMPORTS.get(source, set()):
+            failures.append(f"{path}: {source} must not import {external_root}")
+            continue
+        sdk_owner = VENDOR_SDK_OWNERS.get(external_root)
+        if sdk_owner is not None and source != sdk_owner:
+            failures.append(f"{path}: {imported} SDK import is restricted to {sdk_owner}")
+            continue
         if not imported.startswith("rightjob."):
             continue
         target = imported.split(".", 2)[1]
@@ -79,6 +100,15 @@ def check_core(path: Path) -> list[str]:
             and target not in EXCEPTIONS.get(source, set())
         ):
             failures.append(f"{path}: import published contracts, not rightjob.{target} internals")
+    if source in {"executive", "planner", "provider_adapters"}:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in FORBIDDEN_AI_CALLS
+            ):
+                failures.append(f"{path}: dynamic execution is prohibited in AI paths")
     return failures
 
 

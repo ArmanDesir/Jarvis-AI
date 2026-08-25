@@ -4,8 +4,8 @@ from rightjob.identity.infrastructure.repositories import SqlAlchemyWorkspaceRep
 from sqlalchemy.orm import Session
 
 
-def test_phase21_metadata_contains_only_approved_tables() -> None:
-    assert set(Base.metadata.tables) == {"workspaces", "users", "memberships"}
+def test_phase21_metadata_contains_owned_tables() -> None:
+    assert set(Base.metadata.tables) >= {"workspaces", "users", "memberships"}
 
 
 def test_membership_mapping_is_directly_workspace_scoped() -> None:

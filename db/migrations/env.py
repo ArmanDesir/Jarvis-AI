@@ -4,7 +4,7 @@ from logging.config import fileConfig
 from os import environ
 
 from alembic import context
-from rightjob.identity.infrastructure.models import Base
+from rightjob.database import register_sqlalchemy_mappings
 from sqlalchemy import engine_from_config, pool
 
 config = context.config
@@ -15,7 +15,7 @@ database_url = environ.get("RIGHTJOB_DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
-target_metadata = Base.metadata
+target_metadata = register_sqlalchemy_mappings()
 
 
 def run_migrations_offline() -> None:
