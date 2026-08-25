@@ -69,7 +69,7 @@ class GroqProviderAdapter:
                 "json_schema": {
                     "name": request.structured_output.schema_key.replace(".", "_"),
                     "strict": True,
-                    "schema": _structured_schema(request),
+                    "schema": _wire_schema(json.loads(request.schema_json)),
                 },
             },
             "stream": False,
@@ -238,47 +238,6 @@ def _wire_schema(value: Any) -> Any:
         if bare_integer in branches and bare_number in branches:
             return {"anyOf": [branch for branch in branches if branch != bare_integer]}
     return translated
-
-
-def _structured_schema(request: AIRequest) -> dict[str, Any]:
-    schema = _wire_schema(json.loads(request.schema_json))
-    if not isinstance(schema, dict):
-        raise _error(
-            AIProviderFailure.SCHEMA_VIOLATION,
-            AIProviderDiagnosticStage.CONTENT,
-            AIProviderDiagnosticReason.SCHEMA_TRANSLATION,
-        )
-    if request.prompt.prompt_key == "executive.intent-classification":
-        _add_intent_guidance(schema)
-    return schema
-
-
-def _add_intent_guidance(schema: dict[str, Any]) -> None:
-    properties = schema.get("properties")
-    names = {
-        "outcome",
-        "reason",
-        "goal",
-        "planning_input",
-        "clarification_question",
-        "missing_fields",
-    }
-    if not isinstance(properties, dict) or any(
-        not isinstance(properties.get(name), dict) for name in names
-    ):
-        raise _error(
-            AIProviderFailure.SCHEMA_VIOLATION,
-            AIProviderDiagnosticStage.CONTENT,
-            AIProviderDiagnosticReason.SCHEMA_TRANSLATION,
-        )
-    schema["description"] = (
-        "Return one canonical intent. planning_ready uses reason ready, non-null goal and "
-        "planning_input, null clarification_question, and empty missing_fields. "
-        "clarification_required uses reason missing_information, null goal and planning_input, "
-        "a non-empty clarification_question of at most 500 characters, and 1 to 8 unique "
-        "lowercase missing_fields. unsupported uses reason unsupported_request, null goal, "
-        "planning_input, and clarification_question, and empty missing_fields."
-    )
 
 
 def _only_choice(value: dict[str, Any]) -> dict[str, Any]:

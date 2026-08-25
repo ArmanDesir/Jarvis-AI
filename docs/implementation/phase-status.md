@@ -117,12 +117,14 @@ provider network call, Temporal workflow, API route, or runtime service was invo
 
 ## Phase 2.16 — Controlled Live AI Runtime Composition & Provider Smoke Foundation
 
-Groq Free source checkpoint completed on 2026-08-17. The existing OpenAI adapter remains accepted;
-its live success is pending after HTTP 429 `RATE_LIMIT`. The current official llama.cpp x64 binary
-is blocked on this Catalina host by its macOS 13.3 minimum. A new direct-HTTPS Groq adapter for the
-exact free model `openai/gpt-oss-20b` now composes through the same provider-neutral Executive and
-Planning path with strict structured output, deterministic provider-local `const` translation, no
-tools, no retry, and no authority expansion. Source and ordinary-test gates pass; the separately
-gated Groq live harness has not run. Status:
-`PHASE 2.16 GROQ FREE PROVIDER SOURCE READY — LIVE VERIFICATION PENDING`. See
-`036-controlled-live-ai-runtime-verification-report.md`.
+Groq authentication, the exact `openai/gpt-oss-20b` model, chat connectivity, strict Structured
+Outputs, the non-overlapping primitive `anyOf` normalization, and the Groq system-message
+compatibility path were live verified. Removing the provider-local root-description mutation
+restored HTTP acceptance. The final bounded smoke reached canonical INTENT decoding, which
+correctly failed closed with `invalid_clarification`; Planning was not reached and no retry occurred.
+Groq's documented strict-schema subset cannot encode every canonical RightJob INTENT invariant
+without narrowing the canonical accepted value set. No retries, repair, coercion, canned values,
+decoder weakening, or semantic relaxation are authorized. OpenAI remains unchanged and full Groq
+runtime verification is not claimed. Status:
+`PHASE 2.16 GROQ TRANSPORT/STRUCTURED OUTPUT VERIFIED — CANONICAL INTENT GUARANTEE BLOCKED BY PROVIDER SCHEMA EXPRESSIVENESS`.
+See `036-controlled-live-ai-runtime-verification-report.md`.

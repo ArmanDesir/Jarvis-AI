@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from rightjob.contracts.ai import (
     StructuredOutputReference,
 )
 from rightjob.contracts.capabilities import SemanticVersion
+from rightjob.executive.intake import INTENT_SCHEMA_JSON, SYSTEM_INSTRUCTION
 from rightjob.provider_adapters.openai import OpenAIProviderAdapter
 
 VERSION = SemanticVersion.parse("1.0.0")
@@ -103,6 +105,32 @@ def test_groq_wire_translation_does_not_change_openai_schema() -> None:
     responses = FakeResponses(completed())
     OpenAIProviderAdapter(None, client=FakeClient(responses)).generate(request(schema))
     assert responses.calls[0]["text"]["format"]["schema"] == schema
+
+
+def test_openai_intent_keeps_canonical_schema_and_system_instruction() -> None:
+    canonical = json.loads(INTENT_SCHEMA_JSON)
+    responses = FakeResponses(completed())
+    intent_request = replace(
+        request(canonical),
+        messages=(
+            AIMessage(AIMessageRole.SYSTEM, SYSTEM_INSTRUCTION),
+            AIMessage(AIMessageRole.USER, "untrusted data"),
+        ),
+    )
+
+    OpenAIProviderAdapter(None, client=FakeClient(responses)).generate(intent_request)
+
+    call = responses.calls[0]
+    assert call["instructions"] == SYSTEM_INSTRUCTION
+    assert call["text"]["format"]["schema"] == canonical
+    value = canonical["properties"]["planning_input"]["items"]["properties"]["value"]
+    assert value["anyOf"] == [
+        {"type": "string"},
+        {"type": "integer"},
+        {"type": "number"},
+        {"type": "boolean"},
+        {"type": "null"},
+    ]
 
 
 def test_client_construction_disables_retries_and_uses_explicit_timeouts(

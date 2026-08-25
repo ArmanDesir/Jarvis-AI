@@ -19,7 +19,7 @@ from rightjob.contracts.ai import (
     StructuredOutputReference,
 )
 from rightjob.contracts.capabilities import SemanticVersion
-from rightjob.executive.intake import INTENT_SCHEMA_JSON
+from rightjob.executive.intake import INTENT_SCHEMA_JSON, SYSTEM_INSTRUCTION
 from rightjob.provider_adapters.groq import GroqProviderAdapter
 from rightjob.provider_adapters.groq import _wire_schema as wire_schema
 
@@ -183,7 +183,7 @@ def test_groq_system_instruction_substitution_is_limited_to_runtime_prompts() ->
     assert body["messages"][0] == {"role": "system", "content": "system"}
 
 
-def test_intent_wire_schema_guides_canonical_invariants_without_mutation() -> None:
+def test_intent_wire_schema_is_only_normalized_without_mutation() -> None:
     sent: list[httpx.Request] = []
     canonical = json.loads(INTENT_SCHEMA_JSON)
     original = deepcopy(canonical)
@@ -196,14 +196,74 @@ def test_intent_wire_schema_guides_canonical_invariants_without_mutation() -> No
         request(canonical, prompt_key="executive.intent-classification")
     )
     wire = json.loads(sent[0].content)["response_format"]["json_schema"]["schema"]
-    guidance = wire["description"]
-    assert "planning_ready uses reason ready" in guidance
-    assert "clarification_required uses reason missing_information" in guidance
-    assert "unsupported uses reason unsupported_request" in guidance
-    assert wire["required"] == canonical["required"]
-    assert wire["additionalProperties"] is False
+    assert "description" not in wire
+    assert wire == wire_schema(canonical)
+    assert wire["properties"]["planning_input"]["items"]["properties"]["value"] == {
+        "anyOf": [
+            {"type": "string"},
+            {"type": "number"},
+            {"type": "boolean"},
+            {"type": "null"},
+        ]
+    }
     assert canonical == original
     assert json.dumps(canonical, separators=(",", ":"), sort_keys=True) == INTENT_SCHEMA_JSON
+
+
+def test_production_intent_matches_accepted_pre_guidance_structure() -> None:
+    sent: list[httpx.Request] = []
+
+    def handle(item: httpx.Request) -> httpx.Response:
+        sent.append(item)
+        return httpx.Response(200, json=completed())
+
+    canonical = json.loads(INTENT_SCHEMA_JSON)
+    intent_request = AIRequest(
+        UUID("21700000-0000-4000-8000-000000000001"),
+        UUID("21700000-0000-4000-8000-000000000002"),
+        AIModelPurpose.EXECUTIVE_PLANNING,
+        AIModelReference("groq", "openai/gpt-oss-20b"),
+        PromptReference("executive.intent-classification", VERSION),
+        StructuredOutputReference("executive.intent-result", VERSION),
+        INTENT_SCHEMA_JSON,
+        (
+            AIMessage(AIMessageRole.SYSTEM, SYSTEM_INSTRUCTION),
+            AIMessage(
+                AIMessageRole.USER,
+                '{"user_message":"Prepare, transform, and verify this synthetic content."}',
+            ),
+        ),
+        512,
+        30,
+    )
+    adapter(httpx.MockTransport(handle)).generate(intent_request)
+
+    body = json.loads(sent[0].content)
+    assert body == {
+        "messages": [
+            {"role": "system", "content": "Return only the requested synthetic JSON object."},
+            {
+                "role": "user",
+                "content": (
+                    '{"user_message":"Prepare, transform, and verify this synthetic content."}'
+                ),
+            },
+        ],
+        "model": "openai/gpt-oss-20b",
+        "max_completion_tokens": 512,
+        "n": 1,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "executive_intent-result",
+                "strict": True,
+                "schema": wire_schema(canonical),
+            },
+        },
+        "stream": False,
+        "temperature": 0,
+    }
+    assert not ({"tools", "functions", "tool_choice"} & body.keys())
 
 
 def test_wire_schema_preserves_constrained_or_mixed_anyof() -> None:

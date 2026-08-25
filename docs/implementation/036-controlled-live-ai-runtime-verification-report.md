@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-17
 **Scope:** Provider-neutral production-style composition and explicitly gated live smoke harnesses
-**Status:** `PHASE 2.16 GROQ CANONICAL-INTENT GUIDANCE READY — FINAL FULL RUNTIME SMOKE PENDING`
+**Status:** `PHASE 2.16 GROQ TRANSPORT/STRUCTURED OUTPUT VERIFIED — CANONICAL INTENT GUARANTEE BLOCKED BY PROVIDER SCHEMA EXPRESSIVENESS`
 
 ## Source checkpoint
 
@@ -861,6 +861,71 @@ packages), and `git diff --check` passed. No provider request occurred.
 
 Status: `PHASE 2.16 GROQ CANONICAL-INTENT GUIDANCE READY — FINAL FULL RUNTIME SMOKE PENDING`.
 
+### Post-checkpoint root-description correction
+
+Commit `e9538e74e8733d6cf7c6e71b5fdc44f09193154a` established the immutable Phase 2.7–2.16
+baseline. The owner then ran the final full-runtime Groq smoke exactly once. INTENT made one request
+and returned HTTP 400 `invalid_request_error`; Planning was not reached and no retry occurred.
+
+Offline byte and structural comparison against the live-accepted G1 request found two value deltas:
+the expected production user message and the Groq-only root schema `description`. The earlier
+pre-guidance full-runtime request had already proved provider acceptance with the production user
+message, short Groq wire system instruction, same endpoint/model/schema name, same normalized
+four-branch primitive `anyOf`, strict mode, and identical generation fields. The root description
+was therefore the only remaining schema-structural change, and it was not part of the locally
+captured Groq strict Structured Outputs supported subset.
+
+The smallest provider-local correction removes only that description injection. Groq now receives
+the canonical schema through the existing recursive normalization alone. The canonical
+`INTENT_SCHEMA_JSON` and decoder are unchanged; OpenAI retains the original five-branch primitive
+union and original system instruction; Groq retains the live-verified four-branch non-overlapping
+union and short wire system instruction. Schema name, strict mode, production user message,
+generation parameters, tool-free behavior, and zero-retry behavior are unchanged.
+
+Deterministic tests prove the Groq INTENT schema has no root description and otherwise equals the
+normalized canonical schema; canonical schema bytes and values remain unchanged; the production
+INTENT body matches the accepted pre-guidance structure; OpenAI remains canonical; invalid
+clarification combinations still fail closed; and Groq remains tool-free and zero-retry.
+
+Offline verification passed: focused tests 122 passed with 2 gated live skips; full ordinary pytest
+306 passed with 49 skips; Ruff format/lint; strict mypy over 115 source files; architecture
+boundaries; phase scope; migration safety; secret hygiene; Python compilation; UV lock consistency
+at 56 packages; and `git diff --check`. All provider/live environment gates were removed. No Groq,
+OpenAI, Gemini, or other provider request occurred during the correction or verification.
+
+Status: `PHASE 2.16 GROQ ROOT-DESCRIPTION CORRECTION READY — FINAL LIVE SMOKE PENDING`.
+
+### Final bounded smoke and provider expressiveness boundary
+
+The owner ran the corrected full-runtime Groq smoke exactly once. Groq authentication, the exact
+`openai/gpt-oss-20b` model, chat connectivity, and strict Structured Outputs succeeded. The
+live-verified non-overlapping primitive `anyOf` normalization remained active, and the Groq-only
+short system-message compatibility path reached structured INTENT output. Removing the problematic
+root-description mutation restored HTTP acceptance; it must not be restored.
+
+The single INTENT response reached the canonical decoder and failed closed with
+`SCHEMA_VIOLATION` / `INVALID_CLARIFICATION`. There was no HTTP failure or provider error type,
+Planning was not reached, and no retry occurred. This proves transport and structured-output
+compatibility while preserving the canonical decoder as the final application authority.
+
+Current official Groq documentation lists strict support for required closed objects, primitive and
+complex types, enums, nullable unions, and `anyOf`, including nested closed object alternatives. It
+does not document the string length/pattern, array cardinality/uniqueness, exact empty-array, or
+general dependent-schema facilities needed to encode every RightJob canonical INTENT invariant.
+An outcome-specific object union can enforce cross-field outcome, reason, and nullability
+relationships, but cannot preserve and enforce the complete accepted value set for clarification
+questions, missing-field identifiers, missing-field cardinality/uniqueness, planning-input key
+rules, and exact empty arrays.
+
+Therefore full Groq runtime verification is not claimed. No retries, repair, coercion, decoder
+weakening, canned values, prompt-only equivalence, or semantic relaxation are authorized. The
+canonical `INTENT_SCHEMA_JSON`, canonical decoder, OpenAI prompt/schema behavior, Groq system-message
+replacement, non-overlapping primitive normalization, strict mode, schema name, generation fields,
+tool-free behavior, and zero-retry boundary remain unchanged.
+
+Status:
+`PHASE 2.16 GROQ TRANSPORT/STRUCTURED OUTPUT VERIFIED — CANONICAL INTENT GUARANTEE BLOCKED BY PROVIDER SCHEMA EXPRESSIVENESS`.
+
 ### Groq source verification
 
 | Gate | Result |
@@ -888,21 +953,13 @@ PostgreSQL ports `5432` and `55416`, Temporal port `7233`, and API port `8000` w
 No service, database, Alembic operation, provider request, or external action was started. Migration
 head remains `20260812_0004`.
 
-The exact future Groq command, with the secret intentionally omitted, is:
-
-```bash
-RIGHTJOB_LIVE_AI_TESTS=true RIGHTJOB_AI_ENABLED=true RIGHTJOB_AI_ADAPTER=groq \
-  RIGHTJOB_AI_MODEL=openai/gpt-oss-20b \
-  .venv/bin/python -m pytest -x -vv tests/live/test_groq_planning_smoke.py
-```
-
-`RIGHTJOB_GROQ_API_KEY` must already be exported locally. This command was not authorized or
-executed by the source checkpoint.
+No further Groq smoke, compatibility probe, prompt experiment, schema experiment, or retry is
+authorized for Phase 2.16.
 
 ## Risks and deferred work
 
-- Model structured-output compatibility and provider behavior remain unproven until the separately
-  approved live call.
+- Groq transport and strict Structured Outputs are verified, but complete canonical INTENT
+  enforcement is blocked by the provider's documented schema expressiveness.
 - The success prompt is intentionally synthetic; no business-quality claim will follow from it.
 - Production API activation requires bounded provider invocation observability integrated with the
   accepted Audit/Observability architecture. No persistence is warranted for this development
@@ -912,4 +969,4 @@ executed by the source checkpoint.
 
 ## Recommendation
 
-`PHASE 2.16 GROQ CANONICAL-INTENT GUIDANCE READY — FINAL FULL RUNTIME SMOKE PENDING`
+`PHASE 2.16 GROQ TRANSPORT/STRUCTURED OUTPUT VERIFIED — CANONICAL INTENT GUARANTEE BLOCKED BY PROVIDER SCHEMA EXPRESSIVENESS`
