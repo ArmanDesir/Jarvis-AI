@@ -80,3 +80,54 @@ def test_executive_uses_only_its_module_and_published_contracts() -> None:
             ):
                 offenders.append((path.name, module))
     assert offenders == []
+
+
+def test_validation_and_reviewer_have_no_authority_or_runtime_dependencies() -> None:
+    forbidden = {
+        "rightjob.orchestration",
+        "rightjob.policy",
+        "rightjob.provider_adapters",
+        "rightjob.repositories",
+        "rightjob.tool_interfaces",
+        "sqlalchemy",
+        "temporalio",
+    }
+    offenders: list[tuple[str, str]] = []
+    for boundary in ("validation", "reviewer"):
+        boundary_forbidden = forbidden | (
+            {
+                "rightjob.contracts.approval",
+                "rightjob.contracts.authorization",
+                "rightjob.contracts.policy",
+            }
+            if boundary == "reviewer"
+            else set()
+        )
+        for path in (ROOT / f"packages/core/src/rightjob/{boundary}").glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                module = node.module if isinstance(node, ast.ImportFrom) else None
+                if module and any(
+                    module == item or module.startswith(f"{item}.") for item in boundary_forbidden
+                ):
+                    offenders.append((path.relative_to(ROOT).as_posix(), module))
+    assert offenders == []
+
+
+def test_result_presentation_contract_has_no_payload_or_authority_fields() -> None:
+    from dataclasses import fields
+
+    from rightjob.contracts.review import ExecutiveResultPresentation, ReviewAssessment
+
+    forbidden = {
+        "payload",
+        "payload_json",
+        "approval",
+        "authorization",
+        "workflow_state",
+        "repository",
+        "credential",
+        "provider_response",
+    }
+    assert not ({field.name for field in fields(ExecutiveResultPresentation)} & forbidden)
+    assert not ({field.name for field in fields(ReviewAssessment)} & forbidden)

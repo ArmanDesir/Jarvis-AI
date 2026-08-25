@@ -50,11 +50,28 @@ STRICTLY_FORBIDDEN = {
     "executive": {"planner", "orchestration", "provider_adapters", "tool_interfaces"},
     "planner": {"orchestration", "provider_adapters", "tool_interfaces", "repositories"},
     "reviewer": {"orchestration", "policy", "provider_adapters", "tool_interfaces", "repositories"},
+    "validation": {
+        "orchestration",
+        "policy",
+        "provider_adapters",
+        "tool_interfaces",
+        "repositories",
+    },
     "memory": {"work", "identity"},
     "tool_interfaces": {"provider_adapters"},
 }
 VENDOR_SDK_OWNERS = {"openai": "provider_adapters"}
-FORBIDDEN_EXTERNAL_IMPORTS = {"executive": {"importlib", "sqlalchemy", "subprocess", "temporalio"}}
+FORBIDDEN_EXTERNAL_IMPORTS = {
+    owner: {"importlib", "sqlalchemy", "subprocess", "temporalio"}
+    for owner in {"executive", "reviewer", "validation"}
+}
+FORBIDDEN_CONTRACT_IMPORTS = {
+    "reviewer": {
+        "rightjob.contracts.approval",
+        "rightjob.contracts.authorization",
+        "rightjob.contracts.policy",
+    }
+}
 FORBIDDEN_AI_CALLS = {"eval", "exec", "compile", "__import__"}
 
 
@@ -80,6 +97,12 @@ def check_core(path: Path) -> list[str]:
         return []
     failures: list[str] = []
     for imported in imports(path):
+        if any(
+            imported == forbidden or imported.startswith(f"{forbidden}.")
+            for forbidden in FORBIDDEN_CONTRACT_IMPORTS.get(source, set())
+        ):
+            failures.append(f"{path}: {source} must not import authority contract {imported}")
+            continue
         external_root = imported.split(".", 1)[0]
         if external_root in FORBIDDEN_EXTERNAL_IMPORTS.get(source, set()):
             failures.append(f"{path}: {source} must not import {external_root}")
@@ -100,7 +123,7 @@ def check_core(path: Path) -> list[str]:
             and target not in EXCEPTIONS.get(source, set())
         ):
             failures.append(f"{path}: import published contracts, not rightjob.{target} internals")
-    if source in {"executive", "planner", "provider_adapters"}:
+    if source in {"executive", "planner", "provider_adapters", "reviewer", "validation"}:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if (
