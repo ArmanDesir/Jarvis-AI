@@ -146,3 +146,26 @@ No migration, provider request, service, persistence, retry, repair, revision lo
 worker/Temporal, Memory, tool, or production Capability change was introduced. Status:
 `PHASE 2.17 RESULT VALIDATION / REVIEW / SYNTHESIS IMPLEMENTED — CHECKPOINT REVIEW READY`. See
 `037-result-validation-review-synthesis-verification-report.md`.
+
+## Phase 2.18 — AI Capability Routing & Safety Evaluation Foundation
+
+Implemented on 2026-08-27 as a source-only, in-memory path from typed route requirements and
+resolved policy/workspace constraints plus trusted immutable, versioned, expiring candidate
+snapshots through independent deterministic eligibility filtering and stable ranking to either a
+selected model reference or typed unavailable decision. Every mandatory structured-output, tool,
+context, modality, privacy, retention, region, cost, latency, quality, availability, qualification,
+and fallback constraint fails closed without relaxation; all applicable closed rejection reasons
+are retained. Ranking is independent of input order and uses explicit provider/model tie-breaks.
+Fallback is eligibility-only and cannot execute, retry, or weaken requirements. Route decisions are
+non-authoritative and contain no credentials, prompts, provider payloads, runtime objects, Policy,
+Approval, Authorization, workflow transition, or executable content. The Phase 2.16 Groq
+limitation is represented only by injected test evidence; no production provider profile or runtime
+behavior changed. No persistence, migration, provider request, service, runtime adapter selection,
+health polling, Temporal/worker/API, Memory, tool, or production Capability was introduced. Status:
+`PHASE 2.18 AI ROUTING / SAFETY FOUNDATION IMPLEMENTED — CHECKPOINT REVIEW READY`. See
+`038-ai-capability-routing-safety-verification-report.md`.
+
+The published trust boundary enforces exact runtime types: mutable collections, mutable/non-tuple
+candidate sequences, wrong nested members, booleans/floats in integer fields, malformed enums, and
+unsafe free-form model identities are rejected rather than coerced. Candidate evidence is valid on
+the inclusive observation/exclusive expiry interval only.

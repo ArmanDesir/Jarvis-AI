@@ -114,6 +114,80 @@ def test_validation_and_reviewer_have_no_authority_or_runtime_dependencies() -> 
     assert offenders == []
 
 
+def test_ai_router_has_no_authority_adapter_or_runtime_dependencies() -> None:
+    forbidden = {
+        "rightjob.contracts.approval",
+        "rightjob.contracts.authorization",
+        "rightjob.contracts.policy",
+        "rightjob.executive",
+        "rightjob.orchestration",
+        "rightjob.planner",
+        "rightjob.policy",
+        "rightjob.provider_adapters",
+        "rightjob.registry",
+        "rightjob.repositories",
+        "rightjob.reviewer",
+        "rightjob.tool_interfaces",
+        "rightjob.validation",
+        "rightjob_worker",
+        "aiohttp",
+        "anthropic",
+        "builtins",
+        "glob",
+        "groq",
+        "httpx",
+        "importlib",
+        "inspect",
+        "openai",
+        "os",
+        "pathlib",
+        "pkgutil",
+        "requests",
+        "shutil",
+        "socket",
+        "sys",
+        "sqlalchemy",
+        "tempfile",
+        "temporalio",
+        "urllib",
+    }
+    offenders: list[tuple[str, str]] = []
+    for path in (ROOT / "packages/core/src/rightjob/ai_router").glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            modules = (
+                [node.module]
+                if isinstance(node, ast.ImportFrom) and node.module
+                else [alias.name for alias in node.names]
+                if isinstance(node, ast.Import)
+                else []
+            )
+            for module in modules:
+                if any(module == item or module.startswith(f"{item}.") for item in forbidden):
+                    offenders.append((path.relative_to(ROOT).as_posix(), module))
+        forbidden_calls = {
+            "__import__",
+            "compile",
+            "delattr",
+            "eval",
+            "exec",
+            "getattr",
+            "globals",
+            "locals",
+            "open",
+            "setattr",
+            "vars",
+        }
+        offenders.extend(
+            (path.relative_to(ROOT).as_posix(), node.func.id)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in forbidden_calls
+        )
+    assert offenders == []
+
+
 def test_result_presentation_contract_has_no_payload_or_authority_fields() -> None:
     from dataclasses import fields
 

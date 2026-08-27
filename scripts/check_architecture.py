@@ -39,6 +39,18 @@ EXCEPTIONS = {
     "provider_adapters": {"tool_interfaces"},
 }
 STRICTLY_FORBIDDEN = {
+    "ai_router": {
+        "executive",
+        "orchestration",
+        "planner",
+        "policy",
+        "provider_adapters",
+        "registry",
+        "repositories",
+        "reviewer",
+        "tool_interfaces",
+        "validation",
+    },
     "ai_runtime": {
         "audit",
         "identity",
@@ -63,16 +75,52 @@ STRICTLY_FORBIDDEN = {
 VENDOR_SDK_OWNERS = {"openai": "provider_adapters"}
 FORBIDDEN_EXTERNAL_IMPORTS = {
     owner: {"importlib", "sqlalchemy", "subprocess", "temporalio"}
-    for owner in {"executive", "reviewer", "validation"}
+    for owner in {"ai_router", "executive", "reviewer", "validation"}
 }
+FORBIDDEN_EXTERNAL_IMPORTS["ai_router"].update(
+    {
+        "aiohttp",
+        "anthropic",
+        "builtins",
+        "glob",
+        "groq",
+        "httpx",
+        "inspect",
+        "openai",
+        "os",
+        "pathlib",
+        "pkgutil",
+        "requests",
+        "rightjob_worker",
+        "shutil",
+        "socket",
+        "sys",
+        "tempfile",
+        "urllib",
+    }
+)
 FORBIDDEN_CONTRACT_IMPORTS = {
+    "ai_router": {
+        "rightjob.contracts.approval",
+        "rightjob.contracts.authorization",
+        "rightjob.contracts.policy",
+    },
     "reviewer": {
         "rightjob.contracts.approval",
         "rightjob.contracts.authorization",
         "rightjob.contracts.policy",
-    }
+    },
 }
 FORBIDDEN_AI_CALLS = {"eval", "exec", "compile", "__import__"}
+FORBIDDEN_ROUTER_CALLS = FORBIDDEN_AI_CALLS | {
+    "delattr",
+    "getattr",
+    "globals",
+    "locals",
+    "open",
+    "setattr",
+    "vars",
+}
 
 
 def imports(path: Path) -> set[str]:
@@ -123,13 +171,21 @@ def check_core(path: Path) -> list[str]:
             and target not in EXCEPTIONS.get(source, set())
         ):
             failures.append(f"{path}: import published contracts, not rightjob.{target} internals")
-    if source in {"executive", "planner", "provider_adapters", "reviewer", "validation"}:
+    if source in {
+        "ai_router",
+        "executive",
+        "planner",
+        "provider_adapters",
+        "reviewer",
+        "validation",
+    }:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Name)
-                and node.func.id in FORBIDDEN_AI_CALLS
+                and node.func.id
+                in (FORBIDDEN_ROUTER_CALLS if source == "ai_router" else FORBIDDEN_AI_CALLS)
             ):
                 failures.append(f"{path}: dynamic execution is prohibited in AI paths")
     return failures
