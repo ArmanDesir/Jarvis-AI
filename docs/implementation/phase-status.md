@@ -169,3 +169,25 @@ The published trust boundary enforces exact runtime types: mutable collections, 
 candidate sequences, wrong nested members, booleans/floats in integer fields, malformed enums, and
 unsafe free-form model identities are rejected rather than coerced. Candidate evidence is valid on
 the inclusive observation/exclusive expiry interval only.
+
+## Phase 2.19 — Durable Result Quality Gate & Bounded Revision Governance
+
+Stage A implemented source-only immutable contracts and a pure Orchestration-owned quality decision
+over passed validation evidence, a matching non-authoritative review assessment, exact enabled
+Capability Registry re-resolution, a Capability-owned versioned quality policy, and optional prior
+quality-gate state. Acceptance derives only from the trusted required score and threshold. A
+below-threshold result may reserve at most two automated revisions. The first
+`REVISION_REQUIRED` reserves count `0 → 1`; the second reserves `1 → 2`; count `2` prohibits
+another automated revision. A failed future execution does not refund a reservation, and exact
+idempotent replay consumes no additional reservation. Non-improvement, exhausted budget, or a
+conservative Reviewer human-escalation signal produces `needs_human_review` without approval or
+execution authority. Free-form Reviewer diagnostics remain outside state and decision evidence.
+
+Stage B adds Orchestration-owned durable state and append-only decision evidence with forced
+Workspace RLS, optimistic concurrency, restart-safe command idempotency, and atomic safe Audit and
+Outbox evidence. Reservation-time consumption durably enforces the two-cycle ceiling. Reviewer
+diagnostic text is never persisted. No Capability invocation, provider call, revision execution,
+human-review workflow, Temporal/worker/API path, Memory, retry, or fallback is implemented.
+Migration head is `20260827_0005`. Status:
+`PHASE 2.19 DURABLE QUALITY-GATE PERSISTENCE IMPLEMENTED — CHECKPOINT REVIEW READY`. See
+`039-durable-result-quality-gate-design-report.md`.

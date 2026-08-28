@@ -112,6 +112,55 @@ class CapabilityReference:
         _require_key("capability_key", self.capability_key)
 
 
+class QualityScoreImprovementRule(StrEnum):
+    STRICTLY_GREATER = "strictly_greater"
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityQualityGatePolicy:
+    policy_key: str
+    semantic_version: SemanticVersion
+    capability: CapabilityReference
+    review_criteria_key: str
+    review_criteria_version: SemanticVersion
+    score_key: str
+    minimum_score: int
+    maximum_automated_revisions: int
+    improvement_rule: QualityScoreImprovementRule
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("policy_key", self.policy_key),
+            ("review_criteria_key", self.review_criteria_key),
+            ("score_key", self.score_key),
+        ):
+            if type(value) is not str:
+                raise ValueError(f"{name} must be a string")
+            _require_key(name, value)
+        if type(self.semantic_version) is not SemanticVersion:
+            raise ValueError("semantic_version must be a SemanticVersion")
+        if type(self.review_criteria_version) is not SemanticVersion:
+            raise ValueError("review_criteria_version must be a SemanticVersion")
+        _require_semantic_version(self.semantic_version)
+        _require_semantic_version(self.review_criteria_version)
+        if type(self.capability) is not CapabilityReference:
+            raise ValueError("quality policy capability must be a CapabilityReference")
+        if type(self.capability.capability_definition_id) is not UUID:
+            raise ValueError("quality policy Capability identity must be a UUID")
+        if type(self.capability.semantic_version) is not SemanticVersion:
+            raise ValueError("quality policy Capability version must be a SemanticVersion")
+        _require_semantic_version(self.capability.semantic_version)
+        if type(self.minimum_score) is not int or not 0 <= self.minimum_score <= 100:
+            raise ValueError("minimum_score must be an integer between 0 and 100")
+        if (
+            type(self.maximum_automated_revisions) is not int
+            or not 0 <= self.maximum_automated_revisions <= 2
+        ):
+            raise ValueError("maximum_automated_revisions must be an integer between 0 and 2")
+        if type(self.improvement_rule) is not QualityScoreImprovementRule:
+            raise ValueError("improvement_rule must be a QualityScoreImprovementRule")
+
+
 @dataclass(frozen=True, slots=True)
 class CapabilityDefinition:
     capability_definition_id: UUID
@@ -128,6 +177,7 @@ class CapabilityDefinition:
     idempotency: IdempotencyClassification
     timeout: TimeoutMetadata
     retry: RetryMetadata
+    quality_gate_policy: CapabilityQualityGatePolicy | None = None
 
     def __post_init__(self) -> None:
         if self.capability_definition_id.int == 0:
@@ -140,6 +190,11 @@ class CapabilityDefinition:
             _require_key(name, value)
         _require_text("display_name", self.display_name, 100)
         _require_text("description", self.description, 1_000)
+        if self.quality_gate_policy is not None:
+            if type(self.quality_gate_policy) is not CapabilityQualityGatePolicy:
+                raise ValueError("quality_gate_policy must be a CapabilityQualityGatePolicy")
+            if self.quality_gate_policy.capability != self.reference:
+                raise ValueError("quality_gate_policy must bind the exact Capability definition")
 
     @property
     def reference(self) -> CapabilityReference:
@@ -172,3 +227,11 @@ def _require_key(name: str, value: str) -> None:
 def _require_text(name: str, value: str, maximum: int) -> None:
     if not value.strip() or len(value) > maximum:
         raise ValueError(f"{name} must be nonblank and at most {maximum} characters")
+
+
+def _require_semantic_version(value: SemanticVersion) -> None:
+    if type(value.prerelease) is not tuple or type(value.build) is not tuple:
+        raise ValueError("semantic version identifiers must be immutable tuples")
+    if any(type(item) is not str for item in (*value.prerelease, *value.build)):
+        raise ValueError("semantic version identifiers must be strings")
+    SemanticVersion.parse(str(value))

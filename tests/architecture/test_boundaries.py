@@ -205,3 +205,47 @@ def test_result_presentation_contract_has_no_payload_or_authority_fields() -> No
     }
     assert not ({field.name for field in fields(ExecutiveResultPresentation)} & forbidden)
     assert not ({field.name for field in fields(ReviewAssessment)} & forbidden)
+
+
+def test_quality_gate_decisions_have_no_provider_authority_or_runtime_dependencies() -> None:
+    path = ROOT / "packages/core/src/rightjob/orchestration/application/quality_gate.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    forbidden = {
+        "rightjob.ai_router",
+        "rightjob.contracts.approval",
+        "rightjob.contracts.authorization",
+        "rightjob.contracts.policy",
+        "rightjob.policy",
+        "rightjob.provider_adapters",
+        "rightjob.repositories",
+        "rightjob.tool_interfaces",
+        "rightjob_worker",
+        "aiohttp",
+        "anthropic",
+        "httpx",
+        "openai",
+        "requests",
+        "sqlalchemy",
+        "temporalio",
+    }
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module)
+        elif isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+    assert not {
+        imported
+        for imported in imports
+        if any(imported == item or imported.startswith(f"{item}.") for item in forbidden)
+    }
+
+
+def test_reviewer_and_executive_do_not_mutate_quality_gate_state() -> None:
+    for boundary in ("reviewer", "executive"):
+        sources = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / f"packages/core/src/rightjob/{boundary}").glob("*.py")
+        )
+        assert "QualityGateDecisionService" not in sources
+        assert "rightjob.orchestration.application.quality_gate" not in sources

@@ -121,6 +121,19 @@ FORBIDDEN_ROUTER_CALLS = FORBIDDEN_AI_CALLS | {
     "setattr",
     "vars",
 }
+QUALITY_GATE_FORBIDDEN_EXTERNAL_IMPORTS = {
+    "aiohttp",
+    "anthropic",
+    "httpx",
+    "importlib",
+    "openai",
+    "requests",
+    "rightjob_worker",
+    "socket",
+    "subprocess",
+    "temporalio",
+    "urllib",
+}
 
 
 def imports(path: Path) -> set[str]:
@@ -144,6 +157,7 @@ def check_core(path: Path) -> list[str]:
     if source is None:
         return []
     failures: list[str] = []
+    quality_gate = source == "orchestration" and path.name == "quality_gate.py"
     for imported in imports(path):
         if any(
             imported == forbidden or imported.startswith(f"{forbidden}.")
@@ -152,6 +166,9 @@ def check_core(path: Path) -> list[str]:
             failures.append(f"{path}: {source} must not import authority contract {imported}")
             continue
         external_root = imported.split(".", 1)[0]
+        if quality_gate and external_root in QUALITY_GATE_FORBIDDEN_EXTERNAL_IMPORTS:
+            failures.append(f"{path}: quality-gate decisions must not import {external_root}")
+            continue
         if external_root in FORBIDDEN_EXTERNAL_IMPORTS.get(source, set()):
             failures.append(f"{path}: {source} must not import {external_root}")
             continue
@@ -171,21 +188,29 @@ def check_core(path: Path) -> list[str]:
             and target not in EXCEPTIONS.get(source, set())
         ):
             failures.append(f"{path}: import published contracts, not rightjob.{target} internals")
-    if source in {
-        "ai_router",
-        "executive",
-        "planner",
-        "provider_adapters",
-        "reviewer",
-        "validation",
-    }:
+    if (
+        source
+        in {
+            "ai_router",
+            "executive",
+            "planner",
+            "provider_adapters",
+            "reviewer",
+            "validation",
+        }
+        or quality_gate
+    ):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Name)
                 and node.func.id
-                in (FORBIDDEN_ROUTER_CALLS if source == "ai_router" else FORBIDDEN_AI_CALLS)
+                in (
+                    FORBIDDEN_ROUTER_CALLS
+                    if source == "ai_router" or quality_gate
+                    else FORBIDDEN_AI_CALLS
+                )
             ):
                 failures.append(f"{path}: dynamic execution is prohibited in AI paths")
     return failures

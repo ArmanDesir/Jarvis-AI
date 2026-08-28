@@ -9,8 +9,22 @@ from sqlalchemy import func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
+from rightjob.contracts.capabilities import CapabilityReference, SemanticVersion
 from rightjob.contracts.events import Actor, ActorType
-from rightjob.orchestration.application.repositories import ConcurrentExecutionUpdateError
+from rightjob.contracts.review import ArtifactReference
+from rightjob.contracts.revision import (
+    QualityGateCommand,
+    QualityGateDecision,
+    QualityGateDecisionEvidence,
+    QualityGateOutcome,
+    QualityGateReason,
+    QualityGateState,
+    QualityGateStatus,
+)
+from rightjob.orchestration.application.repositories import (
+    ConcurrentExecutionUpdateError,
+    ConcurrentQualityGateUpdateError,
+)
 from rightjob.orchestration.domain import (
     ExecutionRequest,
     ExecutionRun,
@@ -25,6 +39,8 @@ from rightjob.orchestration.infrastructure.models import (
     ExecutionRequestRecord,
     ExecutionRunRecord,
     ExecutionStepRecord,
+    QualityGateDecisionRecord,
+    QualityGateStateRecord,
 )
 
 
@@ -248,3 +264,234 @@ class SqlAlchemyExecutionStepRepository:
             ),
             "version": step.version,
         }
+
+
+def _quality_state(record: QualityGateStateRecord) -> QualityGateState:
+    return QualityGateState(
+        record.id,
+        record.workspace_id,
+        record.run_id,
+        record.step_id,
+        record.correlation_id,
+        record.causation_id,
+        CapabilityReference(
+            record.capability_definition_id,
+            record.capability_key,
+            SemanticVersion.parse(record.capability_version),
+        ),
+        record.policy_key,
+        SemanticVersion.parse(record.policy_version),
+        record.criteria_key,
+        SemanticVersion.parse(record.criteria_version),
+        record.score_key,
+        QualityGateStatus(record.status),
+        record.automated_revision_count,
+        ArtifactReference(
+            record.last_artifact_id,
+            record.last_artifact_version,
+            record.last_artifact_sha256,
+        ),
+        record.last_validation_id,
+        record.last_assessment_id,
+        record.last_score,
+        record.last_decision_id,
+        record.version,
+        record.updated_at,
+    )
+
+
+def _state_values(state: QualityGateState, minimum_score: int) -> dict[str, Any]:
+    return {
+        "id": state.quality_gate_id,
+        "workspace_id": state.workspace_id,
+        "run_id": state.run_id,
+        "step_id": state.step_id,
+        "correlation_id": state.correlation_id,
+        "causation_id": state.causation_id,
+        "capability_definition_id": state.capability.capability_definition_id,
+        "capability_key": state.capability.capability_key,
+        "capability_version": str(state.capability.semantic_version),
+        "policy_key": state.policy_key,
+        "policy_version": str(state.policy_version),
+        "criteria_key": state.criteria_key,
+        "criteria_version": str(state.criteria_version),
+        "score_key": state.score_key,
+        "status": state.status.value,
+        "automated_revision_count": state.automated_revision_count,
+        "minimum_score": minimum_score,
+        "last_score": state.last_score,
+        "last_artifact_id": state.last_artifact.artifact_id,
+        "last_artifact_version": state.last_artifact.version,
+        "last_artifact_sha256": state.last_artifact.sha256,
+        "last_validation_id": state.last_validation_id,
+        "last_assessment_id": state.last_assessment_id,
+        "last_decision_id": state.last_decision_id,
+        "version": state.version,
+        "updated_at": state.updated_at,
+    }
+
+
+class SqlAlchemyQualityGateStateRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, workspace_id: UUID, quality_gate_id: UUID) -> QualityGateState | None:
+        _scope(self._session, workspace_id)
+        record = self._session.scalar(
+            select(QualityGateStateRecord).where(
+                QualityGateStateRecord.workspace_id == workspace_id,
+                QualityGateStateRecord.id == quality_gate_id,
+            )
+        )
+        return _quality_state(record) if record else None
+
+    def add(self, workspace_id: UUID, state: QualityGateState, minimum_score: int) -> None:
+        _require_scope(workspace_id, state.workspace_id)
+        _scope(self._session, workspace_id)
+        values = _state_values(state, minimum_score)
+        values["created_at"] = state.updated_at
+        self._session.add(QualityGateStateRecord(**values))
+
+    def save(
+        self,
+        workspace_id: UUID,
+        state: QualityGateState,
+        minimum_score: int,
+        expected_version: int,
+    ) -> None:
+        _require_scope(workspace_id, state.workspace_id)
+        if state.version != expected_version + 1:
+            raise ValueError("saved quality-gate state must increment version exactly once")
+        _scope(self._session, workspace_id)
+        values = _state_values(state, minimum_score)
+        values.pop("id")
+        values.pop("workspace_id")
+        result = self._session.execute(
+            update(QualityGateStateRecord)
+            .where(
+                QualityGateStateRecord.workspace_id == workspace_id,
+                QualityGateStateRecord.id == state.quality_gate_id,
+                QualityGateStateRecord.version == expected_version,
+            )
+            .values(**values)
+        )
+        if cast(CursorResult[Any], result).rowcount != 1:
+            raise ConcurrentQualityGateUpdateError("quality-gate state was changed or removed")
+
+
+class SqlAlchemyQualityGateDecisionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_by_command(self, workspace_id: UUID, command_id: UUID) -> QualityGateDecision | None:
+        _scope(self._session, workspace_id)
+        record = self._session.scalar(
+            select(QualityGateDecisionRecord).where(
+                QualityGateDecisionRecord.workspace_id == workspace_id,
+                QualityGateDecisionRecord.command_id == command_id,
+            )
+        )
+        if record is None:
+            return None
+        state_record = self._session.scalar(
+            select(QualityGateStateRecord).where(
+                QualityGateStateRecord.workspace_id == workspace_id,
+                QualityGateStateRecord.id == record.quality_gate_id,
+            )
+        )
+        if state_record is None or state_record.last_decision_id != record.id:
+            raise ConcurrentQualityGateUpdateError("recorded decision is not current")
+        command = QualityGateCommand(
+            record.command_id,
+            record.quality_gate_id,
+            record.workspace_id,
+            record.run_id,
+            record.step_id,
+            record.correlation_id,
+            record.causation_id,
+            ArtifactReference(record.artifact_id, record.artifact_version, record.artifact_sha256),
+            Actor(ActorType(record.actor_type), record.actor_id),
+            record.state_version_before,
+            record.decided_at,
+        )
+        evidence = QualityGateDecisionEvidence(
+            record.id,
+            record.command_id,
+            record.quality_gate_id,
+            record.workspace_id,
+            record.run_id,
+            record.step_id,
+            record.correlation_id,
+            record.causation_id,
+            CapabilityReference(
+                record.capability_definition_id,
+                record.capability_key,
+                SemanticVersion.parse(record.capability_version),
+            ),
+            record.policy_key,
+            SemanticVersion.parse(record.policy_version),
+            record.criteria_key,
+            SemanticVersion.parse(record.criteria_version),
+            record.score_key,
+            record.score,
+            record.minimum_score,
+            record.prior_score,
+            command.artifact,
+            record.validation_id,
+            record.assessment_id,
+            record.revision_count_before,
+            record.revision_count_after,
+            record.decided_at,
+        )
+        return QualityGateDecision(
+            command,
+            QualityGateOutcome(record.outcome),
+            tuple(QualityGateReason(item) for item in record.reasons_json),
+            evidence,
+            _quality_state(state_record),
+        )
+
+    def append(
+        self, workspace_id: UUID, decision: QualityGateDecision, state_version_before: int | None
+    ) -> None:
+        _require_scope(workspace_id, decision.command.workspace_id)
+        _scope(self._session, workspace_id)
+        self._session.flush()
+        command, evidence = decision.command, decision.evidence
+        self._session.add(
+            QualityGateDecisionRecord(
+                id=evidence.decision_id,
+                command_id=command.command_id,
+                quality_gate_id=command.quality_gate_id,
+                workspace_id=workspace_id,
+                run_id=command.run_id,
+                step_id=command.step_id,
+                correlation_id=command.correlation_id,
+                causation_id=command.causation_id,
+                actor_type=command.actor.type.value,
+                actor_id=command.actor.id,
+                capability_definition_id=evidence.capability.capability_definition_id,
+                capability_key=evidence.capability.capability_key,
+                capability_version=str(evidence.capability.semantic_version),
+                policy_key=evidence.policy_key,
+                policy_version=str(evidence.policy_version),
+                criteria_key=evidence.criteria_key,
+                criteria_version=str(evidence.criteria_version),
+                score_key=evidence.score_key,
+                score=evidence.score,
+                minimum_score=evidence.minimum_score,
+                prior_score=evidence.prior_score,
+                artifact_id=evidence.artifact.artifact_id,
+                artifact_version=evidence.artifact.version,
+                artifact_sha256=evidence.artifact.sha256,
+                validation_id=evidence.validation_id,
+                assessment_id=evidence.assessment_id,
+                outcome=decision.outcome.value,
+                reasons_json=[reason.value for reason in decision.reasons],
+                revision_count_before=evidence.revision_count_before,
+                revision_count_after=evidence.revision_count_after,
+                state_version_before=state_version_before,
+                state_version_after=decision.next_state.version,
+                decided_at=evidence.decided_at,
+            )
+        )

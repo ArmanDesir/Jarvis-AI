@@ -8,11 +8,16 @@ from uuid import UUID
 
 from rightjob.contracts.authorization import ExecutionAuthorizationConsumer
 from rightjob.contracts.events import AuditEvidence, IntegrationEvent
+from rightjob.contracts.revision import QualityGateDecision, QualityGateState
 from rightjob.orchestration.domain import ExecutionRequest, ExecutionRun, ExecutionStep
 
 
 class ConcurrentExecutionUpdateError(RuntimeError):
     """The canonical execution changed after it was loaded."""
+
+
+class ConcurrentQualityGateUpdateError(RuntimeError):
+    """Quality-gate state changed after it was loaded."""
 
 
 class AuditEvidenceAppender(Protocol):
@@ -45,6 +50,30 @@ class ExecutionStepRepository(Protocol):
     def save(self, workspace_id: UUID, step: ExecutionStep, expected_version: int) -> None: ...
 
 
+class QualityGateStateRepository(Protocol):
+    def get(self, workspace_id: UUID, quality_gate_id: UUID) -> QualityGateState | None: ...
+
+    def add(self, workspace_id: UUID, state: QualityGateState, minimum_score: int) -> None: ...
+
+    def save(
+        self,
+        workspace_id: UUID,
+        state: QualityGateState,
+        minimum_score: int,
+        expected_version: int,
+    ) -> None: ...
+
+
+class QualityGateDecisionRepository(Protocol):
+    def get_by_command(
+        self, workspace_id: UUID, command_id: UUID
+    ) -> QualityGateDecision | None: ...
+
+    def append(
+        self, workspace_id: UUID, decision: QualityGateDecision, state_version_before: int | None
+    ) -> None: ...
+
+
 class ExecutionUnitOfWork(Protocol):
     requests: ExecutionRequestRepository
     runs: ExecutionRunRepository
@@ -52,6 +81,8 @@ class ExecutionUnitOfWork(Protocol):
     audit_evidence: AuditEvidenceAppender
     outbox: OutboxAppender
     authorizations: ExecutionAuthorizationConsumer
+    quality_gate_states: QualityGateStateRepository
+    quality_gate_decisions: QualityGateDecisionRepository
 
     def __enter__(self) -> Self: ...
 

@@ -57,10 +57,12 @@ from rightjob.contracts.authorization import (
 from rightjob.contracts.capabilities import (
     CapabilityCatalog,
     CapabilityDefinition,
+    CapabilityQualityGatePolicy,
     CapabilityReference,
     ContractReference,
     EffectClassification,
     IdempotencyClassification,
+    QualityScoreImprovementRule,
     RetryableFailure,
     RetryMetadata,
     SemanticVersion,
@@ -155,6 +157,16 @@ from rightjob.contracts.review import (
     canonical_result_payload,
     result_digest,
 )
+from rightjob.contracts.revision import (
+    QualityGateCommand,
+    QualityGateContractError,
+    QualityGateDecision,
+    QualityGateDecisionEvidence,
+    QualityGateOutcome,
+    QualityGateReason,
+    QualityGateState,
+    QualityGateStatus,
+)
 
 __all__ = [
     "Actor",
@@ -200,6 +212,7 @@ __all__ = [
     "AuditOutcome",
     "CapabilityCatalog",
     "CapabilityDefinition",
+    "CapabilityQualityGatePolicy",
     "CapabilityReference",
     "CapabilityResult",
     "ContractReference",
@@ -261,6 +274,15 @@ __all__ = [
     "PolicySubject",
     "PromptReference",
     "ProposedPlan",
+    "QualityGateCommand",
+    "QualityGateContractError",
+    "QualityGateDecision",
+    "QualityGateDecisionEvidence",
+    "QualityGateOutcome",
+    "QualityGateReason",
+    "QualityGateState",
+    "QualityGateStatus",
+    "QualityScoreImprovementRule",
     "RetryMetadata",
     "RetryableFailure",
     "ResultContractError",

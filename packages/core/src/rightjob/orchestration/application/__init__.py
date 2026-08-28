@@ -5,6 +5,10 @@ from rightjob.orchestration.application.plan_compiler import (
     ExecutionPlanCompilationError,
     ExecutionPlanCompiler,
 )
+from rightjob.orchestration.application.quality_gate import (
+    DurableQualityGateService,
+    QualityGateDecisionService,
+)
 from rightjob.orchestration.application.registry import (
     BUILT_IN_WORKFLOWS,
     WorkflowDefinition,
@@ -17,7 +21,9 @@ __all__ = [
     "BUILT_IN_WORKFLOWS",
     "ExecutionPlanCompilationError",
     "ExecutionPlanCompiler",
+    "DurableQualityGateService",
     "OrchestrationApplicationService",
+    "QualityGateDecisionService",
     "SyntheticWorkflowCompiler",
     "WorkflowDefinition",
     "WorkflowDefinitionStatus",

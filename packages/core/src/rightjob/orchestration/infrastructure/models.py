@@ -153,6 +153,9 @@ class ExecutionStepRecord(Base):
     __table_args__ = (
         UniqueConstraint("workspace_id", "id", name="uq_execution_steps_workspace_id"),
         UniqueConstraint(
+            "workspace_id", "id", "run_id", name="uq_execution_steps_workspace_id_run"
+        ),
+        UniqueConstraint(
             "workspace_id", "run_id", "sequence", name="uq_execution_steps_workspace_run_sequence"
         ),
         ForeignKeyConstraint(
@@ -213,3 +216,73 @@ class ExecutionStepRecord(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failure_classification: Mapped[str | None] = mapped_column(String(40), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class QualityGateStateRecord(Base):
+    __tablename__ = "quality_gate_states"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    run_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    step_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    correlation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    causation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    capability_definition_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    capability_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    capability_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    policy_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    criteria_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    criteria_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    score_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    automated_revision_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    minimum_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_artifact_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    last_artifact_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    last_validation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    last_assessment_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    last_decision_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class QualityGateDecisionRecord(Base):
+    __tablename__ = "quality_gate_decisions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    command_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    quality_gate_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    workspace_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    run_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    step_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    correlation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    causation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    actor_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    capability_definition_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    capability_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    capability_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    policy_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    criteria_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    criteria_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    score_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    minimum_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    prior_score: Mapped[int | None] = mapped_column(Integer)
+    artifact_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    artifact_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    validation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    assessment_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(40), nullable=False)
+    reasons_json: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    revision_count_before: Mapped[int] = mapped_column(Integer, nullable=False)
+    revision_count_after: Mapped[int] = mapped_column(Integer, nullable=False)
+    state_version_before: Mapped[int | None] = mapped_column(Integer)
+    state_version_after: Mapped[int] = mapped_column(Integer, nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

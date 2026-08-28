@@ -8,9 +8,12 @@ from uuid import UUID
 
 from rightjob.contracts.capabilities import (
     CapabilityDefinition,
+    CapabilityQualityGatePolicy,
+    CapabilityReference,
     ContractReference,
     EffectClassification,
     IdempotencyClassification,
+    QualityScoreImprovementRule,
     RetryableFailure,
     RetryMetadata,
     SemanticVersion,
@@ -73,6 +76,21 @@ BUILT_IN_CAPABILITIES: tuple[CapabilityDefinition, ...] = (
         IdempotencyClassification.NATURALLY_IDEMPOTENT,
         TimeoutMetadata(30),
         RetryMetadata(1),
+        CapabilityQualityGatePolicy(
+            "fake.verify.quality",
+            VERSION_1,
+            CapabilityReference(
+                UUID("02800000-0000-4000-8000-000000000003"),
+                "fake.verify",
+                VERSION_1,
+            ),
+            "fake.verify.quality",
+            VERSION_1,
+            "fake.verify.quality",
+            80,
+            2,
+            QualityScoreImprovementRule.STRICTLY_GREATER,
+        ),
     ),
 )
 

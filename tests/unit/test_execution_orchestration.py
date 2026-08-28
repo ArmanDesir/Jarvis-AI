@@ -494,6 +494,7 @@ def test_revised_migration_contract_has_exact_keys_constraints_and_indexes() -> 
     assert {constraint.name for constraint in steps.constraints} == {
         "pk_execution_steps",
         "uq_execution_steps_workspace_id",
+        "uq_execution_steps_workspace_id_run",
         "uq_execution_steps_workspace_run_sequence",
         "fk_execution_steps_workspace",
         "fk_execution_steps_workspace_run",
