@@ -15,6 +15,11 @@ from rightjob.orchestration.application.registry import (
     WorkflowDefinitionStatus,
     WorkflowRegistry,
 )
+from rightjob.orchestration.application.revision_execution import (
+    DurableRevisionExecutionClaimService,
+    DurableRevisionLifecycleService,
+    RevisionExecutionClaimService,
+)
 from rightjob.orchestration.application.service import OrchestrationApplicationService
 
 __all__ = [
@@ -24,6 +29,9 @@ __all__ = [
     "DurableQualityGateService",
     "OrchestrationApplicationService",
     "QualityGateDecisionService",
+    "RevisionExecutionClaimService",
+    "DurableRevisionExecutionClaimService",
+    "DurableRevisionLifecycleService",
     "SyntheticWorkflowCompiler",
     "WorkflowDefinition",
     "WorkflowDefinitionStatus",

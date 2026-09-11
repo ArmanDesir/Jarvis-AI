@@ -38,6 +38,16 @@ class ExecutionRequestRecord(Base):
             name="fk_execution_requests_workspace_authorization",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["workspace_id", "revision_authorization_evidence_id"],
+            ["authorization_evidence.workspace_id", "authorization_evidence.id"],
+            name="fk_execution_requests_workspace_revision_authorization",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "(execution_authorization_id IS NULL) <> (revision_authorization_evidence_id IS NULL)",
+            name="ck_execution_requests_authorization_kind",
+        ),
         CheckConstraint(
             "actor_type IN ('user', 'system')",
             name="ck_execution_requests_actor_type",
@@ -72,12 +82,186 @@ class ExecutionRequestRecord(Base):
     actor_type: Mapped[str] = mapped_column(String(20), nullable=False)
     actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
     initiator_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    execution_authorization_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    execution_authorization_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    revision_authorization_evidence_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
     workflow_definition_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     workflow_type: Mapped[str] = mapped_column(String(255), nullable=False)
     workflow_version: Mapped[str] = mapped_column(String(50), nullable=False)
     input_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RevisionExecutionClaimRecord(Base):
+    __tablename__ = "revision_execution_claims"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_revision_execution_claims_workspace_id"),
+        UniqueConstraint(
+            "workspace_id", "command_id", name="uq_revision_execution_claims_workspace_command"
+        ),
+        UniqueConstraint(
+            "workspace_id",
+            "quality_gate_id",
+            "quality_decision_id",
+            "reserved_cycle",
+            name="uq_revision_execution_claims_gate_decision_cycle",
+        ),
+        CheckConstraint("reserved_cycle IN (1,2)", name="ck_revision_execution_claims_cycle"),
+        CheckConstraint(
+            "action_type = 'regenerate_artifact'", name="ck_revision_execution_claims_action"
+        ),
+        CheckConstraint(
+            "status IN ('claimed','launch_pending','running','completed','failed',"
+            "'cancelled','reconciliation_required')",
+            name="ck_revision_execution_claims_status",
+        ),
+        CheckConstraint(
+            "(status = 'claimed') = (workflow_id IS NULL)",
+            name="ck_revision_execution_claims_workflow_state",
+        ),
+        CheckConstraint(
+            "status = 'claimed' OR launch_pending_at IS NOT NULL",
+            name="ck_revision_execution_claims_launch_timestamp",
+        ),
+        CheckConstraint(
+            "status NOT IN ('running','completed','failed','cancelled') OR "
+            "running_at IS NOT NULL OR "
+            "(status = 'failed' AND lifecycle_reason = 'launch_rejected') OR "
+            "(reconciliation_required_at IS NOT NULL AND ("
+            "(status = 'completed' AND lifecycle_reason IS NULL) OR "
+            "(status = 'failed' AND lifecycle_reason IN "
+            "('workflow_failed','workflow_terminated','workflow_timed_out')) OR "
+            "(status = 'cancelled' AND lifecycle_reason = 'workflow_cancelled')))",
+            name="ck_revision_execution_claims_running_timestamp",
+        ),
+        CheckConstraint(
+            "(status = 'completed') = (completed_at IS NOT NULL)",
+            name="ck_revision_execution_claims_completed_timestamp",
+        ),
+        CheckConstraint(
+            "(status = 'failed') = (failed_at IS NOT NULL)",
+            name="ck_revision_execution_claims_failed_timestamp",
+        ),
+        CheckConstraint(
+            "(status = 'cancelled') = (cancelled_at IS NOT NULL)",
+            name="ck_revision_execution_claims_cancelled_timestamp",
+        ),
+        CheckConstraint(
+            "status <> 'reconciliation_required' OR reconciliation_required_at IS NOT NULL",
+            name="ck_revision_execution_claims_reconciliation_timestamp",
+        ),
+        CheckConstraint(
+            "lifecycle_reason IS NULL OR lifecycle_reason IN "
+            "('launch_rejected','launch_outcome_unknown','execution_failed',"
+            "'validation_failed','cancelled_by_request','workflow_failed',"
+            "'workflow_cancelled','workflow_terminated','workflow_timed_out')",
+            name="ck_revision_execution_claims_reason",
+        ),
+        CheckConstraint(
+            "(result_artifact_id IS NULL) = (result_artifact_version IS NULL) AND "
+            "(result_artifact_id IS NULL) = (result_artifact_sha256 IS NULL) AND "
+            "(result_artifact_id IS NULL) = (result_validation_evidence_id IS NULL)",
+            name="ck_revision_execution_claims_result_pair",
+        ),
+        CheckConstraint(
+            "(status = 'completed') = (result_artifact_id IS NOT NULL)",
+            name="ck_revision_execution_claims_completed_result",
+        ),
+        CheckConstraint(
+            "(status IN ('failed','cancelled','reconciliation_required')) = "
+            "(lifecycle_reason IS NOT NULL)",
+            name="ck_revision_execution_claims_reason_required",
+        ),
+        CheckConstraint(
+            "(status <> 'failed' OR lifecycle_reason IN "
+            "('launch_rejected','execution_failed','validation_failed','workflow_failed',"
+            "'workflow_terminated','workflow_timed_out')) AND "
+            "(lifecycle_reason <> 'launch_rejected' OR "
+            "(status = 'failed' AND running_at IS NULL)) AND "
+            "(status <> 'cancelled' OR lifecycle_reason IN "
+            "('cancelled_by_request','workflow_cancelled')) AND "
+            "(status <> 'reconciliation_required' OR "
+            "lifecycle_reason = 'launch_outcome_unknown') AND "
+            "(lifecycle_reason NOT IN ('workflow_failed','workflow_cancelled',"
+            "'workflow_terminated','workflow_timed_out') OR "
+            "reconciliation_required_at IS NOT NULL)",
+            name="ck_revision_execution_claims_reason_status",
+        ),
+        CheckConstraint("version > 0", name="ck_revision_execution_claims_version"),
+        UniqueConstraint(
+            "workspace_id", "workflow_id", name="uq_revision_execution_claims_workspace_workflow"
+        ),
+        Index(
+            "ix_revision_execution_claims_workspace_gate_status",
+            "workspace_id",
+            "quality_gate_id",
+            "status",
+        ),
+        Index(
+            "ix_revision_execution_claims_workspace_authorization",
+            "workspace_id",
+            "authorization_evidence_id",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    command_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    quality_gate_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    quality_decision_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    reserved_cycle: Mapped[int] = mapped_column(Integer, nullable=False)
+    planning_request_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    plan_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    source_run_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    source_step_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    correlation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    causation_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    department_definition_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    department_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    department_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    capability_definition_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    capability_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    capability_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    quality_policy_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    quality_policy_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    action_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    action_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    prior_execution_authorization_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), nullable=False
+    )
+    authorization_evidence_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    approval_request_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    approval_decision_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    source_artifact_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    source_artifact_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_artifact_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    target_artifact_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    execution_request_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    execution_run_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    execution_step_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    workflow_id: Mapped[str | None] = mapped_column(String(255))
+    lifecycle_reason: Mapped[str | None] = mapped_column(String(40))
+    launch_pending_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    running_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reconciliation_required_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_artifact_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    result_artifact_version: Mapped[int | None] = mapped_column(Integer)
+    result_artifact_sha256: Mapped[str | None] = mapped_column(String(64))
+    result_validation_evidence_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    last_lifecycle_command_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    last_lifecycle_command_digest: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ExecutionRunRecord(Base):

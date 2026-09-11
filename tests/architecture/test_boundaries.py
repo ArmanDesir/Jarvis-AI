@@ -239,6 +239,13 @@ def test_quality_gate_decisions_have_no_provider_authority_or_runtime_dependenci
         for imported in imports
         if any(imported == item or imported.startswith(f"{item}.") for item in forbidden)
     }
+    assert not {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"__import__", "compile", "eval", "exec", "open"}
+    }
 
 
 def test_reviewer_and_executive_do_not_mutate_quality_gate_state() -> None:
@@ -249,3 +256,105 @@ def test_reviewer_and_executive_do_not_mutate_quality_gate_state() -> None:
         )
         assert "QualityGateDecisionService" not in sources
         assert "rightjob.orchestration.application.quality_gate" not in sources
+
+
+def test_revision_execution_authority_is_orchestration_owned_and_runtime_isolated() -> None:
+    path = ROOT / "packages/core/src/rightjob/orchestration/application/revision_execution.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    forbidden = {
+        "rightjob.ai_router",
+        "rightjob.executive",
+        "rightjob.provider_adapters",
+        "rightjob.repositories",
+        "rightjob.reviewer",
+        "rightjob.tool_interfaces",
+        "rightjob_worker",
+        "aiohttp",
+        "httpx",
+        "requests",
+        "sqlalchemy",
+        "subprocess",
+        "temporalio",
+    }
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module)
+        elif isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+    assert not {
+        imported
+        for imported in imports
+        if any(imported == item or imported.startswith(f"{item}.") for item in forbidden)
+    }
+
+
+def test_revision_temporal_slice_is_closed_and_provider_free() -> None:
+    worker = ROOT / "services/worker/src/rightjob_worker"
+    workflow = worker / "revision_workflows.py"
+    activity = worker / "revision_activities.py"
+    runtime = worker / "revision_runtime.py"
+    forbidden_imports = {
+        "rightjob.ai_router",
+        "rightjob.executive",
+        "rightjob.policy",
+        "rightjob.provider_adapters",
+        "rightjob.reviewer",
+        "rightjob.tool_interfaces",
+        "aiohttp",
+        "anthropic",
+        "httpx",
+        "openai",
+        "requests",
+    }
+    for path in (workflow, activity, runtime):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        imports = {
+            module
+            for node in ast.walk(tree)
+            for module in (
+                [node.module]
+                if isinstance(node, ast.ImportFrom) and node.module
+                else [alias.name for alias in node.names]
+                if isinstance(node, ast.Import)
+                else []
+            )
+        }
+        assert not {
+            imported
+            for imported in imports
+            if any(
+                imported == item or imported.startswith(f"{item}.") for item in forbidden_imports
+            )
+        }
+    workflow_source = workflow.read_text(encoding="utf-8")
+    for forbidden in (
+        "sqlalchemy",
+        "datetime.now",
+        "uuid4",
+        "open(",
+        "subprocess",
+        "requests",
+        "socket",
+    ):
+        assert forbidden not in workflow_source
+    activity_source = activity.read_text(encoding="utf-8")
+    assert "regenerate_artifact" in activity_source
+    assert "instructions" not in activity_source and "prompt" not in activity_source
+
+
+def test_non_authoritative_modules_cannot_initiate_revision_runtime() -> None:
+    forbidden_roots = (
+        ROOT / "packages/core/src/rightjob/reviewer",
+        ROOT / "packages/core/src/rightjob/executive",
+        ROOT / "packages/core/src/rightjob/planner",
+        ROOT / "packages/core/src/rightjob/ai_router",
+        ROOT / "packages/core/src/rightjob/policy",
+    )
+    offenders = []
+    for root in forbidden_roots:
+        for path in root.glob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            if "RevisionRuntimeService" in source or "rightjob_worker.revision_runtime" in source:
+                offenders.append(path.relative_to(ROOT).as_posix())
+    assert offenders == []

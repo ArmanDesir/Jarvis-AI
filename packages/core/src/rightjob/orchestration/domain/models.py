@@ -11,6 +11,7 @@ from uuid import UUID
 
 from rightjob.contracts.authorization import ExecutionAuthorizationReference
 from rightjob.contracts.events import Actor, JsonValue
+from rightjob.contracts.revision_execution import RevisionExecutionAuthorizationReference
 
 
 class RunStatus(StrEnum):
@@ -152,7 +153,7 @@ class ExecutionRequest:
     causation_id: UUID | None
     actor: Actor
     initiator_type: InitiatorType
-    authorization: ExecutionAuthorizationReference
+    authorization: ExecutionAuthorizationReference | RevisionExecutionAuthorizationReference
     workflow_definition_id: UUID
     workflow_type: str
     workflow_version: str

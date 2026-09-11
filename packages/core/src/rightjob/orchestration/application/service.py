@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from uuid import UUID, uuid4
 
+from rightjob.contracts.authorization import ExecutionAuthorizationReference
 from rightjob.contracts.events import (
     AuditEvidence,
     AuditOutcome,
@@ -84,6 +85,8 @@ class OrchestrationApplicationService:
             )
             for step in request.steps
         )
+        if type(request.authorization) is not ExecutionAuthorizationReference:
+            raise ValueError("revision authorization requires the revision claim boundary")
         with self._unit_of_work() as uow:
             uow.authorizations.consume(
                 request.authorization,

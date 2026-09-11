@@ -470,6 +470,8 @@ def test_revised_migration_contract_has_exact_keys_constraints_and_indexes() -> 
         "uq_execution_requests_workspace_authorization",
         "fk_execution_requests_workspace",
         "fk_execution_requests_workspace_authorization",
+        "fk_execution_requests_workspace_revision_authorization",
+        "ck_execution_requests_authorization_kind",
         "ck_execution_requests_actor_type",
         "ck_execution_requests_actor_id_nonblank",
         "ck_execution_requests_workflow_type_nonblank",

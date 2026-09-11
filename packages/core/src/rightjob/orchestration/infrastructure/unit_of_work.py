@@ -15,6 +15,7 @@ from rightjob.orchestration.infrastructure.repositories import (
     SqlAlchemyExecutionStepRepository,
     SqlAlchemyQualityGateDecisionRepository,
     SqlAlchemyQualityGateStateRepository,
+    SqlAlchemyRevisionExecutionClaimRepository,
 )
 
 AuditFactory = Callable[[Session], AuditEvidenceAppender]
@@ -36,6 +37,7 @@ class SqlAlchemyExecutionUnitOfWork:
         self.steps = SqlAlchemyExecutionStepRepository(self._session)
         self.quality_gate_states = SqlAlchemyQualityGateStateRepository(self._session)
         self.quality_gate_decisions = SqlAlchemyQualityGateDecisionRepository(self._session)
+        self.revision_execution_claims = SqlAlchemyRevisionExecutionClaimRepository(self._session)
         self.audit_evidence = audit_factory(self._session)
         self.outbox = outbox_factory(self._session)
         self.authorizations = authorization_factory(self._session)

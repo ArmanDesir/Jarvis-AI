@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
@@ -99,7 +99,7 @@ def _request(request_id: UUID, workspace_id: UUID) -> ExecutionRequest:
         actor=Actor(ActorType.USER, str(USER_A if workspace_id == WORKSPACE_A else USER_B)),
         initiator_type=InitiatorType.USER,
         authorization=ExecutionAuthorizationReference(
-            UUID(int=88), workspace_id, UUID(int=89), "0" * 64
+            request_id, workspace_id, UUID(int=89), "0" * 64
         ),
         workflow_definition_id=DEFINITION,
         workflow_type="synthetic.sequence",
@@ -270,6 +270,17 @@ def _cleanup(connection: Connection) -> None:
             text(f"DELETE FROM {table} WHERE id = ANY(:ids)"), {"ids": list(approved[parameter])}
         )
     connection.execute(
+        text("DELETE FROM execution_authorizations WHERE id = ANY(:ids)"),
+        {
+            "ids": [
+                REQUEST_A,
+                REQUEST_B,
+                REQUEST_ROLLBACK,
+                REQUEST_DUPLICATE,
+            ]
+        },
+    )
+    connection.execute(
         text("DELETE FROM memberships WHERE id = ANY(:ids)"),
         {"ids": [MEMBERSHIP_A, MEMBERSHIP_B]},
     )
@@ -290,7 +301,7 @@ def _drop_role(connection: Connection) -> None:
     ):
         connection.execute(text(f"REVOKE ALL ON {table} FROM {APP_ROLE}"))
     connection.execute(text(f"REVOKE ALL ON SCHEMA public FROM {APP_ROLE}"))
-    connection.execute(text(f"REVOKE CONNECT ON DATABASE rightjob_phase16 FROM {APP_ROLE}"))
+    connection.execute(text(f"REVOKE CONNECT ON DATABASE rightjob_phase220 FROM {APP_ROLE}"))
     connection.execute(text(f"DROP ROLE {APP_ROLE}"))
 
 
@@ -304,7 +315,7 @@ def phase27_engines() -> Iterator[tuple[Engine, Engine]]:
         with owner.begin() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "20260811_0003"
+                == "20260827_0006"
             )
             assert connection.execute(
                 text(
@@ -325,7 +336,7 @@ def phase27_engines() -> Iterator[tuple[Engine, Engine]]:
                     "NOCREATEROLE NOINHERIT NOBYPASSRLS"
                 )
             )
-            connection.execute(text(f"GRANT CONNECT ON DATABASE rightjob_phase16 TO {APP_ROLE}"))
+            connection.execute(text(f"GRANT CONNECT ON DATABASE rightjob_phase220 TO {APP_ROLE}"))
             connection.execute(text(f"GRANT USAGE ON SCHEMA public TO {APP_ROLE}"))
             connection.execute(text(f"GRANT SELECT, INSERT ON execution_requests TO {APP_ROLE}"))
             connection.execute(
@@ -337,6 +348,39 @@ def phase27_engines() -> Iterator[tuple[Engine, Engine]]:
             connection.execute(text(f"GRANT SELECT, INSERT ON audit_entries TO {APP_ROLE}"))
             connection.execute(text(f"GRANT SELECT, INSERT ON outbox_events TO {APP_ROLE}"))
             _insert_identity(connection)
+            authorization_insert = text(
+                "INSERT INTO execution_authorizations "
+                "(id,workspace_id,planning_request_id,plan_id,workflow_definition_id,"
+                "workflow_type,workflow_version,plan_digest,digest_algorithm,"
+                "authorization_version,issued_at,expires_at,correlation_id,causation_id,"
+                "idempotency_key) VALUES "
+                "(:id,:workspace,:planning,:plan,:definition,'synthetic.sequence','1.0.0',"
+                ":digest,'sha256',1,:issued,:expires,:correlation,:causation,:key)"
+            )
+            connection.execute(
+                authorization_insert,
+                [
+                    {
+                        "id": request_id,
+                        "workspace": workspace_id,
+                        "planning": UUID(int=91),
+                        "plan": UUID(int=92),
+                        "definition": DEFINITION,
+                        "digest": "0" * 64,
+                        "issued": NOW,
+                        "expires": NOW + timedelta(hours=1),
+                        "correlation": CORRELATION,
+                        "causation": CAUSATION,
+                        "key": f"phase27-{request_id}",
+                    }
+                    for request_id, workspace_id in (
+                        (REQUEST_A, WORKSPACE_A),
+                        (REQUEST_B, WORKSPACE_B),
+                        (REQUEST_ROLLBACK, WORKSPACE_A),
+                        (REQUEST_DUPLICATE, WORKSPACE_A),
+                    )
+                ],
+            )
             request_b = _request(REQUEST_B, WORKSPACE_B)
             run_b = _run(RUN_B, request_b)
             session = Session(bind=connection)

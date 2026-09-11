@@ -37,6 +37,7 @@ def proof_context(workflow_type: str, operation: str) -> WorkflowContext:
     return WorkflowContext(
         workspace_id="00000000-0000-0000-0000-00000000025a",
         correlation_id=f"phase25-{operation}",
+        causation_id=None,
         logical_operation_id=operation,
         workflow_type=workflow_type,
         workflow_version=1,

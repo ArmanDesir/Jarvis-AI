@@ -157,7 +157,10 @@ def check_core(path: Path) -> list[str]:
     if source is None:
         return []
     failures: list[str] = []
-    quality_gate = source == "orchestration" and path.name == "quality_gate.py"
+    quality_gate = source == "orchestration" and path.name in {
+        "quality_gate.py",
+        "revision_execution.py",
+    }
     for imported in imports(path):
         if any(
             imported == forbidden or imported.startswith(f"{forbidden}.")

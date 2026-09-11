@@ -191,3 +191,50 @@ human-review workflow, Temporal/worker/API path, Memory, retry, or fallback is i
 Migration head is `20260827_0005`. Status:
 `PHASE 2.19 DURABLE QUALITY-GATE PERSISTENCE IMPLEMENTED — CHECKPOINT REVIEW READY`. See
 `039-durable-result-quality-gate-design-report.md`.
+
+## Phase 2.20 — Authorized Bounded Revision Execution Lifecycle Foundation
+
+Stage A publishes immutable, runtime-validated safe revision actions, fresh authorization bindings,
+commands, claims, evidence, lifecycle states, and artifact submissions plus a pure
+Orchestration-owned authority/claim service. A claim requires the exact durable
+`REVISION_REQUIRED` decision and current state, cycle 1 or 2 already reserved by Phase 2.19, exact
+enabled Capability/Department Registry re-resolution, the current Capability quality policy, fresh
+Policy evaluation, a fresh canonical action-digest authorization, and fresh human approval only
+when Policy requires it. Exact replay is idempotent; conflicting or concurrent claims fail closed.
+Prior authorization, Reviewer recommendations, Executive presentation, and AI Router selection
+never grant execution authority. Safe evidence contains closed identities only.
+
+Stage B adds migration `20260827_0006`, forced Workspace RLS, a durable idempotent claim repository,
+optimistic state-version verification, an exclusive fresh revision-authorization binding, queued
+execution request/run/pending-step linkage, and atomic safe Audit/Outbox evidence. Existing
+plan-specific execution authorization remains unchanged and the ordinary execution service rejects
+revision authorization outside the claim boundary. Stage C1 extends the still-uncommitted `0006`
+with closed lifecycle states/reasons, deterministic workflow identity, lifecycle timestamps,
+validated result linkage, optimistic/idempotent lifecycle transitions, and an atomic completion
+transaction that completes execution linkage and returns the quality gate to `AWAITING_REVIEW`
+without changing the reserved count or running another decision. Outbox delivery, Temporal launch,
+worker execution, artifact regeneration, API/UI, human escalation, and Memory remain unimplemented.
+Stage C1.1 adds only the truthful definite-rejection path
+`LAUNCH_PENDING → FAILED(LAUNCH_REJECTED)`: it requires launch/failure timestamps without inventing
+`RUNNING`; ambiguous launch remains `RECONCILIATION_REQUIRED`. Stage C1.2 atomically terminalizes
+the exact linked run (`QUEUED → FAILED`) and revision step (`PENDING → FAILED`) for that path only,
+without adding either transition to ordinary execution. No started timestamp is fabricated, and
+rollback/idempotency cover claim, linkage, Audit, and Outbox together. Status:
+`PHASE 2.20 STAGE C1.2 PRE-LAUNCH EXECUTION LINKAGE CORRECTED — STAGE C2 APPROVAL REQUIRED`. See
+`040-authorized-bounded-revision-execution-design-report.md`.
+
+Stage C2 adds the smallest revision-only Temporal runtime without changing frozen migration
+`20260827_0006`: atomic pre-launch revalidation, exact persisted workflow-ID launch and inspection,
+deterministic reconciliation, one bounded synthetic `REGENERATE_ARTIFACT` workflow/activity,
+existing Validator integration, existing C1 completion, confirmed cancellation, and worker
+registration. The isolated real proof reached `AWAITING_REVIEW` through the actual worker
+composition and stopped without Reviewer or another quality decision. Provider execution,
+production Capability/tool execution, API/UI, and Outbox delivery remain unimplemented. Status:
+`PHASE 2.20 STAGE C2 TEMPORAL REVISION RUNTIME IMPLEMENTED — ADVERSARIAL CHECKPOINT REVIEW REQUIRED`.
+
+Stage C2.1 hardens the uncommitted runtime after adversarial review. Migration `0006` is narrowly
+corrected for terminal reconciliation after lost launch acknowledgement, using closed recovery
+reasons and the existing reconciliation timestamp without fabricating `RUNNING`. Every Temporal
+operation reloads exact durable authority first; memo and activity attestation bind the full safe
+action; cancellation requires confirmed Temporal `CANCELED`; and ordinary execution fixtures retain
+live FK enforcement. Phase 2 remains incomplete pending adversarial re-review and owner approval.
